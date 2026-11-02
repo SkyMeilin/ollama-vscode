@@ -12,7 +12,13 @@ import {
   Tool,
   ToolCall
 } from 'ollama';
-import { textSegments, toOllamaMessages, toOllamaTools } from './convert';
+import {
+  isDataPart,
+  isTextPart,
+  textSegments,
+  toOllamaMessages,
+  toOllamaTools
+} from './convert';
 import {
   isOutdatedAgentModel,
   isRecommendedModel,
@@ -360,6 +366,9 @@ export class OllamaLanguageModelProvider implements vscode.LanguageModelChatProv
         stream: true,
         tools: tools.length > 0 ? tools : undefined,
         think: thinkingLevel,
+        // Keep user queries and tool pairs intact; recover from a size error
+        // instead of letting the server truncate history before rendering it.
+        truncate: model.local ? false : undefined,
         options: requestOptions
       } as ChatRequest & { stream: true };
       const streamRequest = (async () => {
@@ -1160,8 +1169,8 @@ class CalibratedTokenEstimator {
     // Tool history and media also contribute tokens absent from inputToText.
     // Calibrating against those totals would inflate subsequent text estimates.
     if (messages.some(message => message.content.some(part => !(
-      part instanceof vscode.LanguageModelTextPart
-      || (part instanceof vscode.LanguageModelDataPart && part.mimeType.startsWith('text/'))
+      isTextPart(part)
+      || (isDataPart(part) && part.mimeType.startsWith('text/'))
     )))) {
       return;
     }
